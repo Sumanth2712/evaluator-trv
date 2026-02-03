@@ -474,6 +474,7 @@
                 fetched from S3 in the browser using the S3 key – no presigned URLs, no backend.</small>
         </div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
         <div class="filter-section">
             <button class="filter-btn active" onclick="setFilter('all')" id="filterAll">All</button>
             <button class="filter-btn" onclick="setFilter('not_validated')" id="filterNotValidated">Not Validated <span
@@ -541,7 +542,7 @@
         const CONFIG_KEY = 'qa_standalone_s3_config';
         const CONFIDENCE_HIGH = 85;
         const CONFIDENCE_LOW = 60;
-        const SDK_CDN = 'https://cdn.skypack.dev/@aws-sdk/client-s3@3.540.0?min';
+        // Using AWS SDK v2 via script tag (no ESM import issues)
         let manifestItems = [];
         let filteredList = [];
         let currentIndex = 0;
@@ -579,29 +580,28 @@
             try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch (e) { }
         }
 
-        async function ensureS3Client() {
+        function ensureS3Client() {
             if (s3Client) return;
             saveConfigToStorage();
             if (!config.awsAccessKey || !config.awsSecretKey) throw new Error('AWS Access Key and Secret Key are required');
-            var creds = { accessKeyId: config.awsAccessKey, secretAccessKey: config.awsSecretKey };
-            if (config.awsSessionToken) creds.sessionToken = config.awsSessionToken;
-            var mod = await import(SDK_CDN);
-            var S3Client = mod.S3Client;
-            var GetObjectCommand = mod.GetObjectCommand;
-            s3Client = { client: new S3Client({ region: config.awsRegion, credentials: creds }), GetObjectCommand: GetObjectCommand, bucket: config.s3Bucket };
+            AWS.config.update({
+                accessKeyId: config.awsAccessKey,
+                secretAccessKey: config.awsSecretKey,
+                sessionToken: config.awsSessionToken || undefined,
+                region: config.awsRegion
+            });
+            s3Client = { client: new AWS.S3(), bucket: config.s3Bucket };
         }
 
         async function fetchImageFromS3(s3Key) {
-            await ensureS3Client();
-            var cmd = new s3Client.GetObjectCommand({ Bucket: s3Client.bucket, Key: s3Key });
-            var response = await s3Client.client.send(cmd);
-            var body = response.Body;
-            var blob;
-            if (body instanceof Blob) blob = body;
-            else if (body && typeof body.transformToWebStream === 'function') blob = await new Response(body.transformToWebStream()).blob();
-            else if (body && typeof body.arrayBuffer === 'function') blob = new Blob([await body.arrayBuffer()]);
-            else blob = await new Response(body).blob();
-            return URL.createObjectURL(blob);
+            ensureS3Client();
+            return new Promise((resolve, reject) => {
+                s3Client.client.getObject({ Bucket: s3Client.bucket, Key: s3Key }, (err, data) => {
+                    if (err) return reject(err);
+                    var blob = new Blob([data.Body], { type: data.ContentType || 'image/jpeg' });
+                    resolve(URL.createObjectURL(blob));
+                });
+            });
         }
 
         function revokeCurrentObjectUrl() {

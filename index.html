@@ -1,84 +1,435 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QA – Processed Images (Standalone, direct S3)</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0; flex-wrap: wrap; gap: 10px; }
-        .stats { font-size: 18px; font-weight: bold; color: #333; }
-        .stats .accuracy { color: #4CAF50; }
-        .stats .floating { color: #9C27B0; margin-left: 15px; }
-        .batch-badge { background: #2196F3; color: white; padding: 4px 12px; border-radius: 4px; font-size: 14px; }
-        .config-panel { background: #E8F5E9; padding: 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; border: 1px solid #C8E6C9; }
-        .config-panel h3 { margin-bottom: 12px; color: #2E7D32; }
-        .config-panel .row { margin-bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-        .config-panel label { font-weight: bold; color: #1B5E20; min-width: 140px; }
-        .config-panel input, .config-panel select { padding: 8px 10px; border: 1px solid #A5D6A7; border-radius: 4px; width: 100%; max-width: 400px; font-size: 14px; }
-        .config-panel input[type="password"] { font-family: monospace; }
-        .config-panel button { padding: 10px 20px; background: #2E7D32; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .config-panel button:hover { background: #1B5E20; }
-        .config-panel small { display: block; margin-top: 8px; color: #558B2F; }
-        .main-content { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
-        .image-section { background: #f9f9f9; border-radius: 8px; padding: 20px; text-align: center; }
-        .image-container { background: #fff; border: 2px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 15px; min-height: 500px; display: flex; align-items: center; justify-content: center; }
-        .image-container img { max-width: 100%; max-height: 500px; border-radius: 4px; }
-        .image-container .placeholder { color: #999; font-size: 16px; }
-        .image-container .loading { color: #2196F3; font-size: 16px; }
-        .info-section { background: #f9f9f9; border-radius: 8px; padding: 20px; }
-        .info-item { margin-bottom: 15px; padding: 10px; background: white; border-radius: 4px; border-left: 4px solid #2196F3; }
-        .info-item label { font-weight: bold; color: #666; display: block; margin-bottom: 5px; }
-        .info-item .value { color: #333; font-size: 16px; }
-        .status-badge { display: inline-block; padding: 5px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-top: 5px; }
-        .status-good { background: #4CAF50; color: white; }
-        .status-bad { background: #f44336; color: white; }
-        .status-unknown { background: #9E9E9E; color: white; }
-        .confidence-high { background: #4CAF50; color: white; }
-        .confidence-medium { background: #FF9800; color: white; }
-        .confidence-low { background: #f44336; color: white; }
-        .confidence-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-top: 5px; }
-        .confidence-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
-        .reason-box { background: #FFF3E0; border-left: 4px solid #FF9800; padding: 10px; margin-top: 10px; border-radius: 4px; font-style: italic; color: #E65100; }
-        .filter-section { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        .filter-btn { padding: 8px 16px; border: 2px solid #ddd; background: white; border-radius: 20px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
-        .filter-btn:hover { border-color: #2196F3; }
-        .filter-btn.active { background: #2196F3; color: white; border-color: #2196F3; }
-        .review-count { background: #f44336; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px; }
-        .navigation { display: flex; gap: 10px; margin-top: 20px; justify-content: center; }
-        button { padding: 12px 24px; font-size: 16px; border: none; border-radius: 4px; cursor: pointer; transition: all 0.3s; }
-        button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-        .btn-success { background: #4CAF50; color: white; }
-        .btn-danger { background: #f44336; color: white; }
-        .btn-secondary { background: #9E9E9E; color: white; }
-        .btn-export { background: #FF9800; color: white; }
-        .btn-floating { background: #9C27B0; color: white; }
-        .progress { text-align: center; margin: 15px 0; color: #666; font-size: 14px; }
-        .validation-status { margin-top: 15px; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; }
-        .validation-correct { background: #C8E6C9; color: #2E7D32; }
-        .validation-incorrect { background: #FFCDD2; color: #C62828; }
-        .validation-none { background: #E0E0E0; color: #616161; }
-        .floating-badge { background: #9C27B0; color: white; padding: 4px 10px; border-radius: 4px; font-size: 14px; margin-top: 5px; }
-        .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-        .actions button { flex: 1; min-width: 120px; }
-        .actions .btn-incorrect-fv { background: #c62828; color: white; }
-        .actions .btn-incorrect-q { background: #b71c1c; color: white; }
-        .actions .btn-incorrect-both { background: #8e0000; color: white; }
-        .error-message { color: #f44336; background: #FFEBEE; padding: 10px; border-radius: 4px; margin: 10px 0; }
-        @media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .stats {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stats .accuracy {
+            color: #4CAF50;
+        }
+
+        .stats .floating {
+            color: #9C27B0;
+            margin-left: 15px;
+        }
+
+        .batch-badge {
+            background: #2196F3;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .config-panel {
+            background: #E8F5E9;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            border: 1px solid #C8E6C9;
+        }
+
+        .config-panel h3 {
+            margin-bottom: 12px;
+            color: #2E7D32;
+        }
+
+        .config-panel .row {
+            margin-bottom: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .config-panel label {
+            font-weight: bold;
+            color: #1B5E20;
+            min-width: 140px;
+        }
+
+        .config-panel input,
+        .config-panel select {
+            padding: 8px 10px;
+            border: 1px solid #A5D6A7;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+            font-size: 14px;
+        }
+
+        .config-panel input[type="password"] {
+            font-family: monospace;
+        }
+
+        .config-panel button {
+            padding: 10px 20px;
+            background: #2E7D32;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .config-panel button:hover {
+            background: #1B5E20;
+        }
+
+        .config-panel small {
+            display: block;
+            margin-top: 8px;
+            color: #558B2F;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+        }
+
+        .image-section {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .image-container {
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 4px;
+        }
+
+        .image-container .placeholder {
+            color: #999;
+            font-size: 16px;
+        }
+
+        .image-container .loading {
+            color: #2196F3;
+            font-size: 16px;
+        }
+
+        .info-section {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .info-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info-item label {
+            font-weight: bold;
+            color: #666;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .info-item .value {
+            color: #333;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .status-good {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-bad {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-unknown {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .confidence-high {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .confidence-medium {
+            background: #FF9800;
+            color: white;
+        }
+
+        .confidence-low {
+            background: #f44336;
+            color: white;
+        }
+
+        .confidence-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .reason-box {
+            background: #FFF3E0;
+            border-left: 4px solid #FF9800;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-style: italic;
+            color: #E65100;
+        }
+
+        .filter-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            border-color: #2196F3;
+        }
+
+        .filter-btn.active {
+            background: #2196F3;
+            color: white;
+            border-color: #2196F3;
+        }
+
+        .review-count {
+            background: #f44336;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+
+        .navigation {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .btn-export {
+            background: #FF9800;
+            color: white;
+        }
+
+        .btn-floating {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .progress {
+            text-align: center;
+            margin: 15px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .validation-status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .validation-correct {
+            background: #C8E6C9;
+            color: #2E7D32;
+        }
+
+        .validation-incorrect {
+            background: #FFCDD2;
+            color: #C62828;
+        }
+
+        .validation-none {
+            background: #E0E0E0;
+            color: #616161;
+        }
+
+        .floating-badge {
+            background: #9C27B0;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .actions button {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .actions .btn-incorrect-fv {
+            background: #c62828;
+            color: white;
+        }
+
+        .actions .btn-incorrect-q {
+            background: #b71c1c;
+            color: white;
+        }
+
+        .actions .btn-incorrect-both {
+            background: #8e0000;
+            color: white;
+        }
+
+        .error-message {
+            color: #f44336;
+            background: #FFEBEE;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
-            <h1>QA – Processed Images (Standalone, direct S3) <span class="batch-badge" id="batchBadge">Batch ?</span></h1>
+            <h1>QA – Processed Images (Standalone, direct S3) <span class="batch-badge" id="batchBadge">Batch ?</span>
+            </h1>
             <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                <div class="stats">Accuracy: <span class="accuracy" id="accuracy">0/0 = 0%</span><span class="floating" id="floatingCount">Floating car: 0</span></div>
-                <button class="btn-secondary" onclick="resetValidations()" style="padding: 8px 16px;">Reset validations</button>
+                <div class="stats">Accuracy: <span class="accuracy" id="accuracy">0/0 = 0%</span><span class="floating"
+                        id="floatingCount">Floating car: 0</span></div>
+                <button class="btn-secondary" onclick="resetValidations()" style="padding: 8px 16px;">Reset
+                    validations</button>
                 <button class="btn-export" onclick="exportToExcel()">Export to Excel</button>
-                <button class="btn-secondary" onclick="exportValidations()" style="padding: 8px 16px;">Export JSON</button>
+                <button class="btn-secondary" onclick="exportValidations()" style="padding: 8px 16px;">Export
+                    JSON</button>
             </div>
         </div>
         <div class="config-panel" id="configPanel">
@@ -89,7 +440,14 @@
             </div>
             <div class="row">
                 <label>Batch</label>
-                <select id="batchSelect"><option value="1">Batch 1</option><option value="2">Batch 2</option><option value="3">Batch 3</option><option value="4">Batch 4</option><option value="5">Batch 5</option><option value="6">Batch 6</option></select>
+                <select id="batchSelect">
+                    <option value="1">Batch 1</option>
+                    <option value="2">Batch 2</option>
+                    <option value="3">Batch 3</option>
+                    <option value="4">Batch 4</option>
+                    <option value="5">Batch 5</option>
+                    <option value="6">Batch 6</option>
+                </select>
             </div>
             <div class="row">
                 <label>AWS Access Key ID</label>
@@ -112,19 +470,24 @@
                 <input type="text" id="awsRegion" value="ap-south-1" placeholder="ap-south-1">
             </div>
             <button type="button" onclick="saveConfigAndLoad()">Save & load batch</button>
-            <small>Manifest: URL to the folder containing batch_1.json, batch_2.json, … (e.g. GitHub Pages). Images are fetched from S3 in the browser using the S3 key – no presigned URLs, no backend.</small>
+            <small>Manifest: URL to the folder containing batch_1.json, batch_2.json, … (e.g. GitHub Pages). Images are
+                fetched from S3 in the browser using the S3 key – no presigned URLs, no backend.</small>
         </div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
         <div class="filter-section">
             <button class="filter-btn active" onclick="setFilter('all')" id="filterAll">All</button>
-            <button class="filter-btn" onclick="setFilter('not_validated')" id="filterNotValidated">Not Validated <span class="review-count" id="notValidatedCount">0</span></button>
+            <button class="filter-btn" onclick="setFilter('not_validated')" id="filterNotValidated">Not Validated <span
+                    class="review-count" id="notValidatedCount">0</span></button>
             <button class="filter-btn" onclick="setFilter('correct')" id="filterCorrect">Correct</button>
             <button class="filter-btn" onclick="setFilter('incorrect')" id="filterIncorrect">Incorrect</button>
-            <button class="filter-btn" onclick="setFilter('floating')" id="filterFloating">Floating car <span class="review-count" id="floatingFilterCount">0</span></button>
+            <button class="filter-btn" onclick="setFilter('floating')" id="filterFloating">Floating car <span
+                    class="review-count" id="floatingFilterCount">0</span></button>
         </div>
         <div class="main-content">
             <div class="image-section">
-                <div class="image-container" id="imageContainer"><div class="placeholder">Enter config above and click Save & load batch.</div></div>
+                <div class="image-container" id="imageContainer">
+                    <div class="placeholder">Enter config above and click Save & load batch.</div>
+                </div>
                 <div class="progress" id="progress">Image 0 of 0</div>
                 <div class="navigation">
                     <button class="btn-secondary" onclick="previousImage()">Previous</button>
@@ -132,26 +495,42 @@
                 </div>
             </div>
             <div class="info-section">
-                <div class="info-item"><label>Folder</label><div class="value" id="folderPath">-</div></div>
-                <div class="info-item"><label>Image</label><div class="value" id="imageName">-</div></div>
-                <div class="info-item"><label>Angle / Doc</label><div class="value" id="angle">-</div></div>
-                <div class="info-item"><label>Full View</label><div class="value" id="fullView">-</div></div>
-                <div class="info-item"><label>Quality</label><div class="value" id="quality">-</div></div>
+                <div class="info-item"><label>Folder</label>
+                    <div class="value" id="folderPath">-</div>
+                </div>
+                <div class="info-item"><label>Image</label>
+                    <div class="value" id="imageName">-</div>
+                </div>
+                <div class="info-item"><label>Angle / Doc</label>
+                    <div class="value" id="angle">-</div>
+                </div>
+                <div class="info-item"><label>Full View</label>
+                    <div class="value" id="fullView">-</div>
+                </div>
+                <div class="info-item"><label>Quality</label>
+                    <div class="value" id="quality">-</div>
+                </div>
                 <div class="info-item" id="confidenceSection">
                     <label>Confidence</label>
                     <div class="value">
                         <span class="status-badge" id="confidenceBadge">-</span>
-                        <div class="confidence-bar"><div class="confidence-fill" id="confidenceFill" style="width:0%"></div></div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceFill" style="width:0%"></div>
+                        </div>
                     </div>
                 </div>
-                <div class="reason-box" id="reasonBox" style="display:none;"><strong>Model reason:</strong> <span id="reasonText"></span></div>
+                <div class="reason-box" id="reasonBox" style="display:none;"><strong>Model reason:</strong> <span
+                        id="reasonText"></span></div>
                 <div class="validation-status validation-none" id="validationStatus">Not yet validated</div>
                 <div id="floatingStatus" class="floating-badge" style="display:none;">Marked as floating car</div>
                 <div class="actions">
                     <button class="btn-success" onclick="markCorrect()">Correctly validated</button>
-                    <button class="btn-incorrect-fv" onclick="markIncorrectReason('full_view')" title="Model was wrong: full view">Incorrect – Full view</button>
-                    <button class="btn-incorrect-q" onclick="markIncorrectReason('quality')" title="Model was wrong: quality">Incorrect – Quality</button>
-                    <button class="btn-incorrect-both" onclick="markIncorrectReason('both')" title="Model was wrong: both full view and quality">Incorrect – Both</button>
+                    <button class="btn-incorrect-fv" onclick="markIncorrectReason('full_view')"
+                        title="Model was wrong: full view">Incorrect – Full view</button>
+                    <button class="btn-incorrect-q" onclick="markIncorrectReason('quality')"
+                        title="Model was wrong: quality">Incorrect – Quality</button>
+                    <button class="btn-incorrect-both" onclick="markIncorrectReason('both')"
+                        title="Model was wrong: both full view and quality">Incorrect – Both</button>
                     <button class="btn-floating" onclick="toggleFloatingCar()">Floating car</button>
                 </div>
             </div>
@@ -162,7 +541,7 @@
         const CONFIG_KEY = 'qa_standalone_s3_config';
         const CONFIDENCE_HIGH = 85;
         const CONFIDENCE_LOW = 60;
-        const SDK_CDN = 'https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3.700.0/+esm';
+        const SDK_CDN = 'https://esm.sh/@aws-sdk/client-s3@3.700.0?bundle';
         let manifestItems = [];
         let filteredList = [];
         let currentIndex = 0;
@@ -186,7 +565,7 @@
                     var bucket = document.getElementById('s3Bucket'); if (bucket) bucket.value = config.s3Bucket || 'tvev-evaluation-prod';
                     var region = document.getElementById('awsRegion'); if (region) region.value = config.awsRegion || 'ap-south-1';
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         function saveConfigToStorage() {
@@ -197,7 +576,7 @@
             config.awsSessionToken = (document.getElementById('awsSessionToken') || {}).value.trim();
             config.s3Bucket = (document.getElementById('s3Bucket') || {}).value.trim() || 'tvev-evaluation-prod';
             config.awsRegion = (document.getElementById('awsRegion') || {}).value.trim() || 'ap-south-1';
-            try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch (e) {}
+            try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch (e) { }
         }
 
         async function ensureS3Client() {
@@ -227,7 +606,7 @@
 
         function revokeCurrentObjectUrl() {
             if (currentObjectUrl) {
-                try { URL.revokeObjectURL(currentObjectUrl); } catch (e) {}
+                try { URL.revokeObjectURL(currentObjectUrl); } catch (e) { }
                 currentObjectUrl = null;
             }
         }
@@ -245,7 +624,7 @@
             } catch (e) { validationData = {}; }
         }
         function saveValidationToStorage() {
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(validationData)); } catch (e) {}
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(validationData)); } catch (e) { }
         }
 
         async function saveConfigAndLoad() {
@@ -288,7 +667,7 @@
 
         function updateFilterCounts() {
             var n = 0, f = 0;
-            manifestItems.forEach(function(item) {
+            manifestItems.forEach(function (item) {
                 var k = getKey(item);
                 if (!validationData[k] || (validationData[k].correctly_validated !== 'yes' && validationData[k].correctly_validated !== 'no')) n++;
                 if (validationData[k] && validationData[k].floating_car) f++;
@@ -299,7 +678,7 @@
 
         async function setFilter(filter) {
             currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(function(btn) { btn.classList.remove('active'); });
+            document.querySelectorAll('.filter-btn').forEach(function (btn) { btn.classList.remove('active'); });
             var idMap = { all: 'filterAll', not_validated: 'filterNotValidated', correct: 'filterCorrect', incorrect: 'filterIncorrect', floating: 'filterFloating' };
             var el = document.getElementById(idMap[filter]); if (el) el.classList.add('active');
             applyFilter();
@@ -312,10 +691,10 @@
 
         function applyFilter() {
             if (currentFilter === 'all') { filteredList = manifestItems.slice(); return; }
-            if (currentFilter === 'not_validated') { filteredList = manifestItems.filter(function(i) { var k = getKey(i); return !validationData[k] || (validationData[k].correctly_validated !== 'yes' && validationData[k].correctly_validated !== 'no'); }); return; }
-            if (currentFilter === 'correct') { filteredList = manifestItems.filter(function(i) { var k = getKey(i); return (validationData[k] && (validationData[k].correctly_validated || '').toLowerCase() === 'yes'); }); return; }
-            if (currentFilter === 'incorrect') { filteredList = manifestItems.filter(function(i) { var k = getKey(i); return (validationData[k] && (validationData[k].correctly_validated || '').toLowerCase() === 'no'); }); return; }
-            if (currentFilter === 'floating') { filteredList = manifestItems.filter(function(i) { var k = getKey(i); return validationData[k] && validationData[k].floating_car === true; }); return; }
+            if (currentFilter === 'not_validated') { filteredList = manifestItems.filter(function (i) { var k = getKey(i); return !validationData[k] || (validationData[k].correctly_validated !== 'yes' && validationData[k].correctly_validated !== 'no'); }); return; }
+            if (currentFilter === 'correct') { filteredList = manifestItems.filter(function (i) { var k = getKey(i); return (validationData[k] && (validationData[k].correctly_validated || '').toLowerCase() === 'yes'); }); return; }
+            if (currentFilter === 'incorrect') { filteredList = manifestItems.filter(function (i) { var k = getKey(i); return (validationData[k] && (validationData[k].correctly_validated || '').toLowerCase() === 'no'); }); return; }
+            if (currentFilter === 'floating') { filteredList = manifestItems.filter(function (i) { var k = getKey(i); return validationData[k] && validationData[k].floating_car === true; }); return; }
             filteredList = manifestItems.slice();
         }
 
@@ -343,7 +722,7 @@
                 currentObjectUrl = await fetchImageFromS3(s3Key);
                 container.innerHTML = '<img src="" alt="" id="qaImg">';
                 var img = document.getElementById('qaImg');
-                img.onerror = function() { this.parentElement.innerHTML = '<div class="error-message">Failed to load image from S3.</div>'; };
+                img.onerror = function () { this.parentElement.innerHTML = '<div class="error-message">Failed to load image from S3.</div>'; };
                 img.src = currentObjectUrl;
             } catch (e) {
                 container.innerHTML = '<div class="error-message">S3 error: ' + e.message + '</div>';
@@ -415,14 +794,14 @@
 
         function updateFloatingCount() {
             var count = 0;
-            Object.keys(validationData).forEach(function(k) { if (validationData[k].floating_car === true) count++; });
+            Object.keys(validationData).forEach(function (k) { if (validationData[k].floating_car === true) count++; });
             var el = document.getElementById('floatingCount');
             if (el) el.textContent = 'Floating car: ' + count;
         }
 
         function updateAccuracy() {
             var total = 0, correct = 0;
-            manifestItems.forEach(function(item) {
+            manifestItems.forEach(function (item) {
                 var k = getKey(item);
                 var v = (validationData[k] && validationData[k].correctly_validated || '').toLowerCase();
                 if (v === 'yes' || v === 'no') { total++; if (v === 'yes') correct++; }
@@ -487,7 +866,7 @@
             if (typeof XLSX === 'undefined') { alert('SheetJS not loaded. Check network.'); return; }
             var headers = ['qa_key', 'mspin', 'certification_id', 'image_name', 'folder_path', 's3_key', 'angle', 'doc_name', 'quality', 'confidence', 'is_full_view_present', 'correctly_validated', 'incorrect_reason', 'floating_car', 'validated_at'];
             var rows = [headers];
-            manifestItems.forEach(function(item) {
+            manifestItems.forEach(function (item) {
                 var k = getKey(item);
                 var v = validationData[k] || {};
                 var ev = item.evaluation || {};
@@ -516,7 +895,7 @@
             alert('Excel downloaded. Columns: qa_key, mspin, certification_id, image_name, folder_path, s3_key, angle, doc_name, quality, confidence, is_full_view_present, correctly_validated, incorrect_reason, floating_car, validated_at.');
         }
 
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'ArrowLeft') previousImage();
             else if (e.key === 'ArrowRight') nextImage();
             else if (e.key === '1' || e.key === 'c' || e.key === 'C') markCorrect();
@@ -533,4 +912,5 @@
         document.getElementById('batchBadge').textContent = 'Batch ' + batch;
     </script>
 </body>
+
 </html>
